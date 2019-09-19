@@ -1,79 +1,89 @@
 
 const { ServiceBroker } = require('moleculer');
-const { createTable, consume, connect } = require('./kstream');
 const { connectProducer } = require('./producer');
+const { KafkaStreams } = require('kafka-streams');
 const CUID = require('cuid');
 
-const wait = function (t) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, t);
-  });
-};
+const broker = new ServiceBroker({
+  nodeID: 'node-author',
+  transporter: 'nats://nats-server:4222',
+  logLevel: 'info',
+  cacher: 'memory'
+});
 
-const seed = function () {
-  return connectProducer({ 'metadata.broker.list': 'kafka:9092' }).then(
-    (producer) => {
+broker.createService({
+  name: 'author',
+  methods: {
+    wait(t) {
       return new Promise((resolve) => {
-        const author = { id: CUID(), name: 'J.R.R Tolkien' };
+        setTimeout(resolve, t);
+      });
+    },
+    async seed() {
+      this.logger.info('seeding ktable');
 
-        console.log(author);
-        
+      await this.wait(15000);
+
+      const producer = await connectProducer({ 'metadata.broker.list': 'kafka:9092' });
+
+      const author = { id: CUID(), name: 'J.R.R Tolkien' };
+
+      this.logger.info(`produced ${JSON.stringify(author)}`);
+      
+      return new Promise((resolve) => {
         producer.produce('author-topic', null, new Buffer(JSON.stringify(author)));
 
         producer.flush(500, () => {
-          console.log('Producer flushed');
+          this.logger.info('producer flushed');
           producer.disconnect();
           resolve();
         });
       });
-    }
-  );
-};
-
-const initTable = async function () {
-  await wait(15000);
-
-  await seed();
-
-  const table = createTable('author-topic', {
-    noptions: {
-      'metadata.broker.list': 'kafka:9092',
-      'group.id': 'graphql-kappa-' + Date.now(),
-      'event_cb': true
     },
-    tconf: {
-      'auto.offset.reset': 'earliest'
+    consume(count) {
+      this.logger.info('consuming ktable');
+
+      this.table.consumeUntilCount(count);
     }
-  });
-
-  await consume(table, 1);
-
-  return table;
-};
-
-initTable().then((table) => {
-  const broker = new ServiceBroker({
-    nodeID: 'node-author',
-    transporter: 'nats://nats-server:4222',
-    logLevel: 'info',
-    cacher: 'memory'
-  });
-
-  broker.createService({
-    name: 'author',
-    actions: {
-      query({ params }) {
-        return table.storage.get(params.id);
+  },
+  created() {
+    const kafkaStreams = new KafkaStreams({
+      noptions: {
+        'metadata.broker.list': 'kafka:9092',
+        'group.id': 'graphql-kappa-' + Date.now(),
+        'event_cb': true
       },
-      mutate({ params }) {
-        return table.storage.set({ id: CUID(), name: params.name });
+      tconf: {
+        'auto.offset.reset': 'earliest'
       }
+    });
+
+    const keyMap = function (message) {
+      const value = JSON.parse(message.value);
+      return { key: value.id, value };
+    };
+
+    this.table = kafkaStreams.getKTable('author-topic', keyMap);
+  },
+  async started() {
+    await this.seed();
+
+    this.logger.info('starting ktable');
+
+    await this.table.start();
+    
+    await this.consume(1);
+
+    this.logger.info('started');
+  },
+  actions: {
+    query({ params }) {
+      return this.table.storage.get(params.id);
+    },
+    mutate({ params }) {
+      return this.table.storage.set({ id: CUID(), name: params.name });
     }
-  });
-
-  console.log('STARTING BROKER');
-
-  broker.start();
-}).catch((error) => {
-  console.error(error.stack);
+  }
 });
+
+broker.start();

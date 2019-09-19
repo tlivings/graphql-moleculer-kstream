@@ -1,7 +1,6 @@
 
-const { ApolloServer } = require('apollo-server');
-const Merge = require('./lib/merge');
-const { ServiceBroker } = require("moleculer");
+const { ServiceBroker } = require('moleculer');
+const path = require('path');
 
 const broker = new ServiceBroker({
   nodeID: 'node-gateway',
@@ -10,15 +9,6 @@ const broker = new ServiceBroker({
   cacher: 'memory'
 });
 
-const server = new ApolloServer({
-  schema: Merge([require('./partials/author')]),
-  context: async (request) => {
-    return { call: broker.call.bind(broker), request };
-  }
-});
+broker.loadService(path.join(__dirname, './services/gateway.js'));
 
-broker.start().then(() => {
-  return server.listen();
-}).then(({ url }) => {
-  console.log(`🚀 Server ready at ${url}`);
-});
+broker.start();

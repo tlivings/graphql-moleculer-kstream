@@ -1,0 +1,17 @@
+
+# An author.
+type Author {
+  id: ID!
+  # The author name.
+  name: String,
+  # The author email.
+  email: String
+}
+type Query {
+  # Seach for an author by id.
+  author(id: ID!, version: String) : Author
+}
+type Mutation {
+  # Create a new book.
+  author(name: String!) : Author
+}
