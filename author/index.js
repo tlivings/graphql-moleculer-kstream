@@ -19,10 +19,10 @@ broker.createService({
         setTimeout(resolve, t);
       });
     },
-    async produce(message) {
-      return new Promise((resolve) => {
-        const payload = JSON.stringify(message);
+    produce(message) {
+      const payload = JSON.stringify(message);
 
+      return new Promise((resolve) => {
         this.producer.produce('author-topic', null, new Buffer(payload));
 
         this.logger.info(`produced ${payload}`);
@@ -76,14 +76,19 @@ broker.createService({
   },
   actions: {
     query({ params }) {
+      this.logger.info(`${this.name}.query id=${params.id}`);
       return this.table.storage.get(params.id);
     },
-    mutation({ params }) {
+    async mutation({ params }) {
+      this.logger.info(`${this.name}.mutation name=${params.name}`);
+
       const id = cuid();
 
-      this.table.storage.set(id, { id, name: params.name });
+      await this.produce({ id, name: params.name });
 
-      return this.table.storage.get(id);
+      return {
+        id
+      };
     }
   }
 });

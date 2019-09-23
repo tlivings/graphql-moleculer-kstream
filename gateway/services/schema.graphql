@@ -7,11 +7,18 @@ type Author {
   # The author email.
   email: String
 }
+
+# A record of an author being created
+type AuthorReceipt {
+  # The id to subscribe to or query
+  id: ID!
+}
+
 type Query {
   # Seach for an author by id.
   author(id: ID!, version: String) : Author
 }
 type Mutation {
   # Create a new book.
-  author(name: String!) : Author
+  author(name: String!) : AuthorReceipt
 }
