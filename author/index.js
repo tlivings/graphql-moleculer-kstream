@@ -2,7 +2,7 @@
 const { ServiceBroker } = require('moleculer');
 const { connectProducer } = require('./producer');
 const { KafkaStreams } = require('kafka-streams');
-const CUID = require('cuid');
+const cuid = require('cuid');
 
 const broker = new ServiceBroker({
   nodeID: 'node-author',
@@ -19,31 +19,24 @@ broker.createService({
         setTimeout(resolve, t);
       });
     },
-    async seed() {
-      this.logger.info('seeding ktable');
-
-      await this.wait(15000);
-
-      const producer = await connectProducer({ 'metadata.broker.list': 'kafka:9092' });
-
-      const author = { id: CUID(), name: 'J.R.R Tolkien' };
-
-      this.logger.info(`produced ${JSON.stringify(author)}`);
-      
+    async produce(message) {
       return new Promise((resolve) => {
-        producer.produce('author-topic', null, new Buffer(JSON.stringify(author)));
+        const payload = JSON.stringify(message);
 
-        producer.flush(500, () => {
+        this.producer.produce('author-topic', null, new Buffer(payload));
+
+        this.logger.info(`produced ${payload}`);
+
+        this.producer.flush(500, () => {
           this.logger.info('producer flushed');
-          producer.disconnect();
           resolve();
         });
       });
     },
-    consume(count) {
-      this.logger.info('consuming ktable');
+    async seed() {
+      this.logger.info('seeding ktable');
 
-      this.table.consumeUntilCount(count);
+      return this.produce({ id: cuid(), name: 'J.R.R Tolkien' });
     }
   },
   created() {
@@ -65,23 +58,32 @@ broker.createService({
 
     this.table = kafkaStreams.getKTable('author-topic', keyMap);
   },
-  async started() {
-    await this.seed();
-
-    this.logger.info('starting ktable');
+  async started() {  
+    this.logger.info('starting ktable');  
 
     await this.table.start();
-    
-    await this.consume(1);
 
     this.logger.info('started');
+
+    this.logger.info('connecting producer');
+
+    this.producer = await connectProducer({ 'metadata.broker.list': 'kafka:9092' });
+
+    await this.seed();
+  },
+  async stopped() {
+    await this.producer.disconnect();
   },
   actions: {
     query({ params }) {
       return this.table.storage.get(params.id);
     },
-    mutate({ params }) {
-      return this.table.storage.set({ id: CUID(), name: params.name });
+    mutation({ params }) {
+      const id = cuid();
+
+      this.table.storage.set(id, { id, name: params.name });
+
+      return this.table.storage.get(id);
     }
   }
 });

@@ -4,9 +4,11 @@ const resolvers = {
   Query: {
     async author(_, { id }, { service }) {
       try {
+        service.logger.info(`invoking author.query`);
         return service.broker.call('author.query', { id });
       }
       catch (error) {
+        service.logger.error(`error: ${error.message}`);
         const clean = error;
         delete clean.ctx;
         throw clean;
@@ -16,9 +18,11 @@ const resolvers = {
   Mutation: {
     async author(_, { name }, { service }) {
       try {
-        return await service.broker.call('author.mutate', { name });
+        service.logger.info(`invoking author.mutation`);
+        return await service.broker.call('author.mutation', { name });
       }
       catch (error) {
+        service.logger.error(`error: ${error.message}`);
         const clean = error;
         delete clean.ctx;
         throw clean;

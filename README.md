@@ -1,10 +1,4 @@
 
-### Overview
-
-Stripped down example of a GraphQL gateway using GraphQL components (partials).
-
-Resolvers are backed by moleculer microservices.
-
 ### Run
 
 ```bash
@@ -17,13 +11,8 @@ Hit http://localhost:4000/ for the GraphQL playground and enter a query. For exa
 
 ```graphql
 query {
-  book(id: "cj9rid70m0001ridq43m0n7qv") {
-    id
+  author(id: "ck0wn0wlw000101p1plo1bm2k") {
     name
-    author {
-      id
-      name
-    }
   }
 }
 ```
@@ -33,13 +22,8 @@ It should result in something like:
 ```json
 {
   "data": {
-    "book": {
-      "id": "cj9rid70m0001ridq43m0n7qv",
-      "name": "The Hobbit",
-      "author": {
-        "id": "cj9ribob50000ridq580knp6j",
-        "name": "J.R.R Tolkien"
-      }
+    "author": {
+      "name": "J.R.R Tolkien"
     }
   }
 }
